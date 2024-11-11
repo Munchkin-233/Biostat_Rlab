@@ -1,0 +1,529 @@
+---
+title: "Lab 4: Producing a descriptive table"
+output: 
+  html_document: 
+    theme: cosmo
+    toc: yes
+    toc_depth: 3
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+<style>
+body {
+  font-size: 18px; /* Adjust the size as needed */
+}
+</style>
+
+
+
+
+You can download the .html file for this lab from the class Brightspace site.
+
+
+
+```{r setup, include = FALSE}
+# set chunk options
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+
+# suppress scientific notation
+
+#load required packages
+library(tidyverse)  
+ 
+```
+
+
+# Table 1 is the foundation
+
+"Table 1" refers to the initial table in a scientific paper, typically summarizing the characteristics of the study sample. This summary is crucial for demonstrating how representative our sample is of the target population.
+
+
+Below is an example of Table 1 from an article by Martin et al. (2018). Pay attention to which statistics are used for which variables in this example table. 
+
+
+![An example of Table 1](https://cdn.jamanetwork.com/ama/content_public/journal/jama/936782/joi180003t1_1692284700.74336.png?Expires=1732020255&Signature=oqDyvdz6mxTMh4~9jZcfY-6qi6KhDL0KOWe8kZ4W~6LfT-T6-OaSkh7jzhoMCjpbhuOVcTplrwJPTdcldEDYQFn5Mo2~WL280njGQ90rL68zWrcB4osSzk0hPwrXPwLOujip91NvbQSbTvQTyy3BrPDf3s6i4evSB9zLKxVTBTFN6FcbXQIxT21HRrt9s4H1mhWtn8oGxHIqidA6-5blUXzObzGasxx4tl153xOnHBgqe00FlZYoa6lhKW1O8L7HH18ngq7eAxCUfEaKx53qfc1HPbuO3sVJtTPowHYwa4AiABg4chPG7rQgj5UFyRX47mMkpA7ow2yUop-XNruSHg__&Key-Pair-Id=APKAIE5G5CRDK6RD3PGA)
+
+*Reference: Martin RM, Donovan JL, Turner EL, et al. Effect of a Low-Intensity PSA-Based Screening Intervention on Prostate Cancer Mortality: The CAP Randomized Clinical Trial. JAMA. 2018;319(9):883–895. doi:10.1001/jama.2018.0154*
+
+
+
+Working with a familiar dataset today: the burn1000 dataset from the aplore3 package, containing data derived from the National Burn Repository 2007 Report. 
+
+```{r}
+# load the data 
+library(aplore3)
+burn <- burn1000
+
+str(burn) 
+```
+
+
+The data dictionary:
+
+id=patient ID 
+
+facility = burn treatment facility 
+
+death =hospital discharge status, “Alive” or “Dead” 
+
+age=age at admission (years) 
+
+gender =“Female” or “Male” 
+
+race =“White” or “Non-White” 
+
+tbsa =total burn surface area (percent) 
+
+inh inj=inhalation injury, “Yes” or “No” 
+
+flame =flame involved in burn injury, “Yes” or “No”
+
+\
+
+## Obtaining descriptive statistics in baseR 
+
+How would we approach this with what we have learned? 
+
+Using functions from baseR, we can obtain the summary statistics for each variable:
+```{r}
+# For continuous variables:
+summary(burn$age)
+sd(burn$age, rm.na = TRUE)  #standard deviation
+
+# For categorical variables:
+table(burn$gender)    # creates frequency table
+prop.table(table(burn$gender))   #creates proportion table
+
+# And if one needs a stratified table
+table(burn$gender, burn$flame)   #creates bivar frequency table
+prop.table(table(burn$gender, burn$flame))   #creates bivar proportion table
+```
+
+The dummy way to create a Table 1 using these functions is to run one command for every variable needed. Then we fill in the numbers in a table created in Microsoft Word or Excel. 
+
+
+But in real life, our final estimation sample may change more than a few times as we change our research question and encounter problems such as missing data. Re-running the code and manually updating the table each time is not efficient.
+
+
+# Introduction to {gtsummary}
+
+The package *gtsummary* developed by Daniel D. Sjoberg *et al.* is a powerful tool for creating summary tables in R. It is designed to work with the **tidyverse**, making it easy to integrate with other packages like dplyr and ggplot2 (i.e. it works with pipes %>%). It has the ability to summarize data sets, regression models, and more, with flexible customization options. The output can be exported to presentable formats. 
+
+See the developer's site for more information: [gtsummary](https://www.danieldsjoberg.com/gtsummary/)
+
+
+## install and load packages gtsummary and dplyr
+
+```{r}
+# install.packages("gtsummary")
+library(gtsummary)
+library(dplyr)
+```
+
+
+## The tbl_summary() function
+
+Being one of the key functions in the package, tbl_summary() has the following structure:
+
+(You may also obtain this from the help window)
+
+```{r, eval = FALSE}
+tbl_summary(
+  data,
+  by = NULL,
+  label = NULL,  #specify the variable labels printed in table
+  statistic = list(all_continuous() ~ "{median} ({p25}, {p75})", 
+                   all_categorical() ~  "{n} ({p}%)"), #change the summary statistics presented
+  digits = NULL, #number of digits the summary statistics will be rounded to
+  type = NULL,   #specify the variable type
+  value = NULL,
+  missing = c("ifany", "no", "always"), #whether to display a row with the number of missing observations
+  missing_text = "Unknown",   #text label for the missing number row
+  missing_stat = "{N_miss}",
+  sort = all_categorical(FALSE) ~ "alphanumeric",  #change the sorting of categorical levels by frequency
+  percent = c("column", "row", "cell"),  #print column, row, or cell percentages
+  include = everything()   #list of variables to include in summary table
+)
+```
+
+
+```{r}
+# Let's try on our data with the default setup. 
+tbl_summary(burn)
+```
+
+```{r}
+# or: 
+burn %>% 
+  tbl_summary()
+```
+
+
+*What do you notice in this table?*\
+
+
+
+
+### incorporating dplyr pipes with tbl_summary()
+For one, we don't want to include ID in our summary table as it does not describe any sample characteristic. 
+
+
+Just like how ggplot() can be incorporated in the pipeline (see lab3), tbl_summary can also be used in the same manner:
+
+```{r}
+burn %>% 
+  dplyr::select(-id) %>% 
+  tbl_summary()
+```
+
+
+#### Exercise 1: Output a basic summary table for variables age, gender and race.
+```{r exercise1, collapse = FALSE}
+# Your code here
+
+
+```
+
+
+We can also use the include option:
+```{r}
+# put the variables you want included inside c(), with commas in between
+burn %>% 
+  tbl_summary(include = c(age, gender, race))  
+```
+
+
+
+### Specifying the type of variables
+
+Another thing we notice is that facility has been treated as continuous. We would like to specify that it is actually a categorical variable. 
+
+```{r}
+# building on the code above, we add additional options inside tbl_summary() 
+burn %>% 
+  select(-id) %>% 
+  tbl_summary(type = list(facility ~ "categorical"))
+
+```
+
+
+```{r}
+# If we want to specify more than one variable as categorical/continuous
+burn %>% 
+  select(-id) %>% 
+  tbl_summary(type = list(c(facility,death)~"categorical",
+                          c(age,tbsa)~"continuous"))  # The variables not specified are kept as their default type
+  
+```
+
+
+*inh_inj* and *flame* are also categorical variables, but only one percentage is shown in our current table. 
+
+```{r}
+str(burn$inh_inj)
+str(burn$flame)
+```
+
+```{r}
+# Specify inh_inj and flame as categorical variables too
+ # Since sometimes gtsummary treats the binary variables as having one primary level only
+burn %>% 
+  select(-id) %>% 
+  tbl_summary(type = list(c(facility,death,inh_inj, flame)~"categorical",
+                          c(age,tbsa)~"continuous"))   
+```
+
+But these two variables have no labels. Keeping them as the original variable names is not at all informative for the readers. 
+
+
+
+### Label the variables
+
+
+Labeling follows the same grammar of  *command "=" selected variables "~" instructions. *
+![Demonstration by the authors](https://github.com/ddsjoberg/gtsummary/raw/main/data-raw/crayon_images/crayon-selectors.png)
+
+```{r}
+burn %>% 
+  select(age, gender, race, facility, death, inh_inj, flame, tbsa) %>% 
+      #by using select() on the variables, we can pre-arrange them in a sensible order
+  tbl_summary(type = list(c(facility,death,inh_inj, flame)~"categorical",
+                          c(age,tbsa)~"continuous"),
+              label = list(age ~ "Age",
+                           gender ~ "Gender",
+                           race ~ "Race",
+                           facility = "Facility",
+                           death = "Death",
+                           inh_inj = "Inhalation Injury",
+                           flame = "Flame Involved", 
+                           tbsa = "Total Burn Surface Area"))  
+               # You may also want to capitalize variable names for formal presentation
+  
+  
+```
+
+
+### Customizing the summary statistics 
+
+```{r}
+# To output mean and sd of continuous variables
+burn %>% 
+  select(-id) %>% 
+  tbl_summary(include = c(age, tbsa),
+              statistic = all_continuous() ~ "{mean} ({sd})")    
+
+# To output median and quartiles instead
+burn %>% 
+  select(-id) %>% 
+  tbl_summary(include = c(age, tbsa),
+              statistic = all_continuous() ~ "{median} ({p25}, {p75})")    
+
+ 
+```
+
+
+For a continuous variable that is normally distributed, printing out the mean and standard deviation is sufficient. But in many cases, some continuous variables are skewed. In such cases, outputting the median and interquartile range is more informative. 
+
+```{r}
+# Examine the distribution of continuous variables 
+hist(burn$age) #age is right-skewed 
+hist(burn$tbsa) #tbsa is right-skewed 
+```
+
+```{r}
+# For all continuous variables, output mean, sd, median, quartiles, and range
+burn %>% 
+  select(age, tbsa) %>% 
+  tbl_summary(type = list(c(age,tbsa)~"continuous2"),   
+                      # For richer summaries, use "continuous2" instead of "continuous"
+               statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})", 
+                                                "{min}, {max}") )
+
+```
+
+
+ 
+### Customizing rounding digits
+
+Keeping the rounding digits for the same statistic consistent within one table is important for clarity. Some software sometimes "eats" the 0 in the end of a number (i.e. presenting 18.80 as 18.8, while other numbers have 2 digits rounding), it is good practice to keep the number of digits consistent even if it ends with a 0.
+
+
+```{r}
+burn %>% 
+  select(age, tbsa) %>% 
+  tbl_summary(type = list(c(age,tbsa)~"continuous2"),   
+                      # For richer summaries, use "continuous2" instead of "continuous"
+               statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})", 
+                                                "{min}, {max}"),
+               digits = list(all_continuous() ~ 2,    #round continuous to 2 digits
+                             all_categorical() ~ 0))  #round categorical to 0 digits
+
+# note that you must pass a list to the digits argument
+
+```
+
+
+#### Exercise2: now try customizing your own summary table for all variables
+```{r exercise2}
+burn %>% 
+  select(age, gender, race, facility, death, inh_inj, flame, tbsa) %>% 
+  tbl_summary( type = list(c(age,tbsa)~"continuous2",
+                           c(facility, inh_inj, flame, death)~"categorical"), 
+               statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})"),
+               digits = list(all_continuous() ~ 2,   
+                             all_categorical() ~ 0), 
+              label = list(age ~ "Age",
+                           gender ~ "Gender",
+                           race ~ "Race",
+                           facility = "Facility",
+                           death = "Death",
+                           inh_inj = "Inhalation Injury",
+                           flame = "Flame Involved", 
+                           tbsa = "Total Burn Surface Area")
+               )   
+    
+```
+
+
+### Add missing pattern
+
+Sometimes you would like to know the number of missing values in each variable. 
+
+```{r}
+# For the missing argument, you can specify "always", "ifany" or "no" for missing too. Just like in the table() function
+burn %>%
+  select(age, gender, race,  death, inh_inj, flame, tbsa) %>% 
+  tbl_summary(type = list(c(death,inh_inj, flame)~"categorical",
+                          c(age,tbsa)~"continuous2"),    
+              statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})", 
+                                                "{min}, {max}"),
+              digits = list(all_continuous() ~ 2,     
+                             all_categorical() ~ 0),
+              missing = "always")  #display a row with the number of missing observations , or "ifany"", or "no" 
+ 
+ 
+```
+
+```{r}
+# And instead of "Unknown", you can also change the label of missing
+burn %>%
+  select(age, gender, race, death, inh_inj, flame, tbsa) %>% 
+  tbl_summary(type = list(c(death,inh_inj, flame)~"categorical",
+                          c(age,tbsa)~"continuous2"),    
+              statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})", 
+                                                "{min}, {max}"),
+              digits = list(all_continuous() ~ 2,     
+                             all_categorical() ~ 0),
+              missing = "always",
+              missing_text = "(Missing)")  #missing appears as (Missing)
+ 
+ 
+```
+
+
+## Advanced skills and exporting the table
+
+### Skill1. Adding a caption and modifying the header
+
+
+
+All publish level tables have to have a table name and appropriate headers, sometimes captions and footnotes. 
+
+
+Reviewing what we have done so far, and add a caption to the table.
+
+```{r} 
+burn %>%  
+  
+  # select and pre-order the variables we need in this table
+  select(age, gender, race, death, inh_inj, flame, tbsa, facility) %>% 
+  
+  # generate the summary table
+  tbl_summary(#specify the type of variables continuous vs. categorical
+              type = list(c(death,inh_inj, flame, facility)~"categorical",
+                          c(age,tbsa)~"continuous2"), 
+              
+              # specify which statistics we need
+              statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})", 
+                                                "{min}, {max}"),
+              
+              # Rounding digits for continuous and categorical variable statistics
+              digits = list(all_continuous() ~ 2,   
+                             all_categorical() ~ 0),
+              
+              # Customize missing patterns: 
+                # there are no missings in this data so given "ifany" they will not show
+              missing = "ifany",  
+              missing_text = "(Missing)",
+              
+              # Label the variables
+              label = list(age = "Age",
+                           gender = "Gender",
+                           race = "Race",
+                           facility = "Facility",
+                           death = "Death",
+                           inh_inj = "Inhalation Injury",
+                           flame = "Flame Involved", 
+                           tbsa = "Total Burn Surface Area")) %>%
+  
+  #Outside the tbl_summary part, we add a caption and modify the header
+  modify_header(label ~ "**Variable**") %>%             # Customize header for variable column
+  modify_caption("**Table1: Descriptive Analysis of Burn Data**") %>% # Add caption
+  bold_labels() %>% # Make variable labels bold for emphasis
+  
+  # Convert the table to gt format for a more refined presentation
+  as_gt()  
+```
+
+
+### Skill 2. Saving the table to excel
+
+ 
+Pop up the table in R viewer to the web browser.\\
+
+If only a pdf version is needed, print from the browser.\\
+
+If an excel version is needed, one way to do it is to "view page source", then copy all html code into [table convert](https://tableconvert.com)
+
+Another way to do it is:
+```{r}
+# save our table as an object
+mytable <- burn %>% 
+  select(age, tbsa) %>% 
+  tbl_summary(type = list(c(age,tbsa)~"continuous2"),    
+               statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})", 
+                                                "{min}, {max}"),
+               digits = list(all_continuous() ~ 2,    
+                             all_categorical() ~ 0)) %>%
+  as_gt()  # for better printing always end with as_gt()
+
+# save the html code to the table with the save_gt() function
+library(gt)
+gt::gtsave(mytable, filename = "burn_table.html")
+
+# Now go to your working directory and open the html file in a browser, paste into table convert. 
+
+
+# as_raw_html(mytable) 
+# This code will also print out all the html code in the console, from which you can copy paste into table convert. 
+
+```
+
+
+Note that the gtsummary table can also be output into other forms. See resources at end of page. 
+
+```{r exercise3}
+# Output a table you produced into an excel file
+```
+
+
+### Skill 3. Stratification 
+
+Like the example table from the start of the lecture featuring clinical trial data, we can also stratify the summary table by a variable. For example, is there a notable difference in any of the variables by alive/death?
+
+
+```{r} 
+library(cardx)  # for the functions add_p(), add_overall(), and add_n()
+
+burn %>%   
+  select(age, gender, race, death, inh_inj, flame, tbsa) %>% 
+  tbl_summary(
+              by=death, # stratifying by death 
+              
+              type = list(c(inh_inj, flame)~"categorical",
+                          c(age,tbsa)~"continuous2"), 
+              statistic = all_continuous() ~ c("{mean} ({sd})", 
+                                                "{median} ({p25}, {p75})", 
+                                                "{min}, {max}"), 
+              digits = list(all_continuous() ~ 2,   
+                             all_categorical() ~ 0) 
+               ) %>%
+  
+  #On top of the stratified table, we can add p-values for comparison
+  add_p() %>%  #add p-values for comparison
+  add_overall()  %>% #add overall summary column
+  add_n()  #add count for each category
+```
+
+
+
+# Other helpful resources
+
+- [the tbl_summary() official tutorial](https://www.danieldsjoberg.com/gtsummary/articles/tbl_summary.html#select_helpers)
+
+(When the time comes, you can also use the tbl_regression() function to summarize regression models.)
+
+
+
+
+
