@@ -1,0 +1,436 @@
+---
+title: "Lab 6: Data Visualization with ggplot2"
+output: 
+  html_document: 
+    theme: cosmo
+    toc: yes
+    toc_depth: 3
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+You can download the .html file for this lab from the class Brightspace site.
+
+```{r setup, include = FALSE}
+# set chunk options
+knitr::opts_chunk$set(message = FALSE,
+                      warning = FALSE)
+
+# suppress scientific notation
+
+#load required packages
+library(tidyverse) # includes ggplot2
+library(mosaicData)
+```
+
+# Introduction to Data Visualization
+
+Here is an example of data visualization (with R package *ggplot2*):
+
+```{r}
+# Generate example data with different distributions
+data1 <- data.frame(
+  type = c( rep("variable 1", 1000), rep("variable 2", 1000) ),
+  value = c( rnorm(1000), rnorm(1000, mean=4) )
+)
+
+# Visualize it
+data1 %>%
+  ggplot( aes(x=value, fill=type)) +
+    geom_histogram( color="#e9ecef", alpha=0.6, position = 'identity') +
+    scale_fill_manual(values=c("#69b3a2", "#404080")) +
+    labs(fill="")
+```
+
+
+
+Each graph has the following components (refer to the code above):
+
+-   `data`: the dataset containing the variables you want to visualize
+
+-   `aes`: the aesthetic attributes you want to be reflected on the geometric object (including which variables should be mapped onto the x & y axis, or determine the color, shape, and size of the geometric objects)
+
+-   `geom`: the type of geometric object you want to graph. The geometric object defines how data will appear visually on the graph—whether as points, lines, bars, etc. `geom` can also have its own aesthetics inside.
+
+-   (optional) additional components connected with `+`: add a layer on the graph
+
+
+**You don't need to remember the syntax!** Here's the <ggplot cheat sheet>[ggplot cheat sheet](https://rstudio.github.io/cheatsheets/data-visualization.pdf), or you can access from the drop down menu of Rstudio --> Help --> Cheat Sheets --> Data Visualization with ggplot2
+
+
+```{r}
+# load the mosaic package for our dataset today
+# run install.packages("mosaicData") or install it from the packages tab in RStudio
+library(mosaicData) 
+
+# load a dataset
+data(CPS85, package = "mosaicData")
+
+# Use some quick ways to check the data 
+head(CPS85)  # check the first few rows
+str(CPS85)   # check the structure of the data
+```
+
+```{r}
+# load the tidyverse package,  which includes ggplot2
+library(tidyverse)  
+```
+
+
+# the data and aes parts
+
+-   specify the dataset(s)
+-   specify aesthetics: maps the variable(s) in the data onto plot parameter(s), for example, y-axis and x-axis
+-   use the *formula*: `ggplot(data = <data>, mapping = aes(x = <x-axis variable>, y = <y-axis variable>))`
+
+```{r}
+# generate a univariate graph with a categorical variable
+ggplot(data = CPS85, mapping = aes(x = sex))  
+
+  # and now the sex categories are on our x-axis
+
+# When following the same positioning of arguments, you may omit the "data" and "mapping" arguments. 
+# That is, R will assume the first argument CPS85 to be the data, and aes(x=sex) as the mapping argument.
+ggplot(CPS85, aes(x=sex) )  # this does the same thing as the syntax above
+
+```
+
+## Rename & Reorder Categorical Variables in our data
+
+We need to make sure the categorical variable is a factor, and we can adjust the labels and the order of the categories using the parameter `levels`
+
+```{r}
+# check the class of the variable
+class(CPS85$sex)      # or use str()
+str(CPS85$sex)     # examine levels of sex again
+levels(CPS85$sex)  # another way to examine
+
+ggplot(data = CPS85, mapping = aes(x = sex))
+
+# change the ordering of levels in sex 
+CPS85_clean <- CPS85 %>%
+  mutate(sex = factor(sex, levels = c("M", "F")))
+
+str(CPS85$sex) 
+str(CPS85_clean$sex)
+
+ggplot(data = CPS85_clean, mapping = aes(x = sex))
+
+
+# We can also incorporate the ggplot function inside our pipeline
+CPS85 %>%
+  mutate(sex = factor(sex, levels = c("M", "F"))) %>%
+  # the ggplot function will be applied after "mutate" 
+  ggplot(mapping = aes(x = sex))   
+
+  # note that this did not make actual changes to the dataset CPS85
+
+```
+
+
+
+# geom\_ (geometric objects)
+
+Now with the plot above as the base layer, we use a `+` to add a layer of a geometric object.
+
+-   specify the type of graph
+-   specify grouping variable, when needed
+-   specify color, shape and size of the geometric objects
+
+
+## geom_bar for bar charts of one categorical variable 
+
+```{r}
+ggplot(data = CPS85_clean, mapping = aes(x = sex)) + 
+  geom_bar()
+```
+
+### Adjust color
+
+We can customize the aesthetics inside the geom objects, for example:
+we can adjust the filling color by specifying the `fill` parameter, and adjust the shape color by specifying the `color` parameter
+
+```{r}
+ggplot(data = CPS85_clean, mapping = aes(x = sex)) +
+  geom_bar(fill = 'burlywood', color = 'steelblue4')  #fill color: darksalmon, shape color: black
+
+#run colors() in your console to quickly see other available colors
+```
+
+```{r exercise1, collapse = FALSE}
+# [exercise1] Make a bar chart of the variable "married". Pick a color combination you like to fill it:
+
+
+
+
+
+
+```
+
+
+Fill the bars with colors based on the levels of a categorical variable by assigning the categorical variable to `fill`. **Note:** When assigning a variable to `fill`, it has to be inside the same `aes()` as the associated variable.
+
+```{r}
+ggplot(data = CPS85_clean, mapping = aes(x = sex, fill = sex)) +
+  geom_bar(color = 'black')
+  
+  #since we are trying to fill the bars mapped from the variable sex, the variable for 'fill' should also be specified in the same aes() argument with x=sex. 
+
+```
+
+## geom_histogram for univariate continuous variable
+
+```{r}
+ggplot(CPS85_clean, aes(x = wage)) +
+  geom_histogram()
+```
+
+### Adjust bin widths
+
+```{r}
+# use a bins of 10
+ggplot(CPS85_clean, aes(x = wage)) +
+  geom_histogram(fill = "darkorange", color = "white", bins = 10)
+```
+
+
+```{r exercise2, collapse = FALSE}
+# [exercise2] now try increasing bins to 20, what do you notice?
+ggplot(CPS85_clean,aes(x = wage)) +
+  geom_histogram(fill = "darkorange", color = "white", bins = 50)
+
+```
+
+## geom_boxplot for univariate continuous variable
+
+```{r}
+# boxplot of wage
+ggplot(CPS85_clean, aes(x = wage)) +
+  geom_boxplot()
+
+ggplot(CPS85_clean, aes(y = wage)) +
+  geom_boxplot()
+  # What's different when we map wage onto y instead of onto x?
+```
+
+
+## geom_bar for bivariate bar charts: Categorical vs. Categorical
+
+`Fill` the bars with different colors according to sex, and in the geom_bar() function, specify the types of barplot by `position`.
+
+```{r}
+# Using the bivariate correlation between sector and sex as example:
+table(CPS85_clean$sector, CPS85_clean$sex, useNA = "ifany")
+```
+
+### Stacked bar chart
+
+```{r}
+ggplot(CPS85_clean, aes(x = sector, fill = sex)) +
+  geom_bar(position = "stack")  # "stack" is the default option of position, so if we do not specify any position, we will get the same type of plot
+```
+
+### Grouped bar chart, segmented bar chart
+
+```{r exercise3, collapse = FALSE}
+# [exercise3] Change position to "dodge" to create a grouped bar chart:
+ggplot(CPS85_clean, aes(x = sector,fill = sex)) +
+  geom_bar(position = "dodge")
+```
+
+```{r exercise4, collapse = FALSE}
+# [exercise4] Change position to "fill" to create a segmented bar chart:
+ggplot(CPS85_clean, aes(x = sector,fill = sex)) +
+  geom_bar(position = "fill")
+```
+
+
+## geom_boxplot for boxplot of categorical vs. continuous
+
+specify the continuous variable with `y=`
+
+```{r}
+ggplot(CPS85_clean, aes(x = sector, y = exper)) +
+  geom_boxplot()
+```
+
+```{r exercise5, collapse = FALSE}
+# [exercise5] How would we plot the distribution of wage vs. sex?
+ggplot(CPS85_clean, aes(x = sex, y = wage)) +
+  geom_boxplot(color="darkblue")
+```
+
+
+## geom_point for scatterplot of two continuous variables
+
+```{r}
+# scatterplot of wage vs. age
+ggplot(CPS85_clean, aes(x = age, y = wage)) +
+  geom_point(color= "darkorange")
+# 
+# ggplot(CPS85_clean, aes(x = wage, y = educ)) +
+#   geom_point(color= "darkorange")
+
+
+```
+
+
+# Grouping
+
+## Add a grouping variable with color
+
+Specify the grouping variable with color by adding `color` to `aes`
+
+```{r}
+# scatterplot of wage vs. age, grouped by sex
+ggplot(CPS85_clean, aes(x = age,y = wage, color=sex))+
+  geom_point()   
+
+# What if I want to assign my own colors? 
+ggplot(CPS85_clean, aes(x = age,y = wage, color=sex))+
+  geom_point() + 
+  scale_color_manual(values = c("darkorange", "steelblue"))
+
+```
+
+```{r exercise6, collapse = FALSE}
+# [exercise6] For the stacked bar chart of sector we did earlier, assign your own colors to sex
+# (hint: use scale_fill_manual instead of scale_color_manual since fill=sex in geom_bar)
+ggplot(CPS85_clean, aes(x = sector, fill = sex)) +
+  geom_bar(position = "stack")  +
+  scale_fill_manual(values = c("darkorange", "steelblue"))
+```
+
+
+## Add a grouping variable with facets
+
+```{r}
+# scatter plot of wave vs. age, grouped by sex, stratified by race
+ggplot(CPS85_clean, aes(x = age,y = wage, color=sex))+
+  geom_point() + 
+  facet_wrap(~race)
+
+ggplot(CPS85_clean, aes(x = age,y = wage))+
+  geom_point() + 
+  facet_wrap(~sex)
+
+```
+
+
+# Scales and legends
+
+Now we have the basic canvas (from data and aes) and the geom component on it, we can add optional components with `+` to adjust the scales, labels, and themes of the plot. This makes our plots more informative and professional. 
+
+```{r}
+# For example, for this bar chart: 
+ggplot(CPS85_clean, aes(x = sector,fill = sex)) +
+  geom_bar(position = "fill") 
+
+
+# We can add labs() and scale_fill_manual()
+ggplot(CPS85_clean, aes(x = sector,fill = sex)) +
+  geom_bar(position = "fill") +
+  labs(y = "Proportion", x= "Sector",     #add labels to y-axis and x-axis
+       title = "Proportions of sex in each sector") +  #add a title
+  scale_fill_manual(
+    values = c("darkorange", "steelblue"),  # customize colors
+    labels = c("Male", "Female")            # Relabel the legend
+  )
+  
+```
+
+
+```{r}
+# Similarly, for this bar chart of sex where F and M are not labeled:
+ggplot(data = CPS85_clean, mapping = aes(x = sex, fill=sex)) +
+  geom_bar() 
+
+# We can add labels on the x-axis and on the legend
+ggplot(data = CPS85_clean, mapping = aes(x = sex, fill=sex)) +
+  geom_bar() +
+  scale_x_discrete(limits = c("M", "F"),  # need to match the original levels of the factor 
+                   labels = c("Male", "Female")) + # need to match the order of the limits
+  scale_fill_discrete(name = "Sex", labels = c("Male", "Female"))
+```
+
+## Continuous Variables
+
+### Adjust the label intervals
+
+specify the min, max and interval with `scale_x_continuous(breaks = seq())`
+
+```{r}
+# For this plot: 
+ggplot(CPS85_clean, aes(x = age,y = wage, color=sex))+
+  geom_point() 
+
+# If we wanted the x-axis to show more ticks
+ggplot(CPS85_clean, aes(x = age, y = wage, color = sex)) +
+  geom_point() + 
+  scale_x_continuous(breaks = seq(18,70,3)) # have to be within range 
+
+```
+
+```{r exercise7, collapse = FALSE}
+# [exercise7] In the plot above, add your own title, name y-axis "hourly wage($)", and x-axis "Age", label the legends as “Male" and "Female" after assigning them colors you like
+
+ggplot(CPS85_clean, aes(x = age, y = wage, color = sex)) +
+  geom_point() + 
+  scale_x_continuous(breaks = c(20,25,30,35,40,45,50,55,60,65))+
+  labs(title = "Scatterplot of wage vs. age",
+       y = "Hourly wage($)",
+       x = "Age") +
+  scale_color_manual(name = "Sex", 
+                     labels = c("Male", "Female"), 
+                     values = c("darkorange", "steelblue") )
+
+```
+
+
+# Display Multiple Figures
+
+## More cool things to explore: overlaying plots
+
+Add a density plot on to histogram. 
+
+```{r}
+# overlay a density plot on the histogram
+ggplot(CPS85_clean,aes(x = wage, y = ..density..)) +
+  geom_histogram(fill = "darkorange", color = "black", bins = 10) + 
+  geom_density(color = 'steelblue', size = 1.1) + 
+  facet_wrap(~sex)
+```
+
+```{r}
+# overlay two histograms on top of each other
+ggplot(CPS85_clean, aes(x = wage, fill = sex)) +
+  geom_histogram(position = "identity", 
+                 color="white",
+                  alpha = 0.5, bins = 30)+ 
+  scale_fill_manual(values = c("#7FFFD4", "pink"), 
+                    labels = c("Female", "Male"))
+```
+
+
+# Yes, you can customize EVERYTHING!
+
+ *ggplot* gives you the flex`xibility to customize almost everything. Data visualization is an art, but also it's an important way of communication. Keep your plots clear and interpretable, and on top of that, visually pleasing if you can. 
+
+## Some more reference on R graphics and ggplot
+
+Therefore, even if I would like to spend hours on finding the perfect color combination, So, before deciding the colors, you may want to make sure the color palettes you use have sufficient contrast and are color-blind friendly.
+
+[A good reference for customizing ggplot](https://rkabacoff.github.io/datavis/Customizing.html)
+
+
+[R graphics cookbook](https://r-graphics.org/)
+
+[The R Graph Gallery](https://r-graph-gallery.com/)
+
+[More detailed color pallette in R](https://r-charts.com/colors/)
+Or google "R colors" for more options in R colors and palettes.
+
+[A guide for finding color blind friendly colors](https://cran.r-project.org/web/packages/colorBlindness/vignettes/colorBlindness.html)
+
+

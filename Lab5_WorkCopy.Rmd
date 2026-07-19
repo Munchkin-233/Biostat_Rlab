@@ -1,0 +1,339 @@
+---
+title: "Lab 5: Data reshaping in R"
+output: 
+  html_document: 
+    theme: cosmo
+    toc: yes
+    toc_depth: 3
+    toc_float: TRUE
+editor_options: 
+  chunk_output_type: console
+---
+
+<style>
+body {
+  font-size: 18px;
+}
+</style>
+
+
+You can download the .html file for this lab from the class Brightspace site.
+
+
+## Introduction to data reconstruction
+
+Being one of the key steps in data management, some examples of data reshaping or restructuring include:
+
+
+**Subsetting Data**
+
+- By column (e.g., selecting specific variables or columns)
+
+- By row (e.g., filtering rows based on conditions)
+
+
+**Binding Data**
+
+- By column (e.g., merging or joining datasets based on a common key)
+
+- By row (e.g., appending or stacking datasets vertically)
+
+
+**Reshaping Data**
+
+- Converting between long and wide formats to better fit analysis needs or reporting styles
+
+
+## Data preparation
+```{r}
+demo <- read.csv("E:/temp/DemoData.csv")
+
+extra <- read.csv("E:/temp/ExtraData.csv")
+
+# Thank you Chun-Che Wen for the simulated data
+
+head(demo)
+head(extra)
+```
+
+
+## Data subsetting 
+
+Recall what we have learned in data manipulation
+
+### Subsetting rows 
+```{r message=FALSE, warning=FALSE}
+# with base R
+extra[extra$Smoke==1 & extra$Alcohol==3, ]
+
+# with dplyr
+library(dplyr)
+extra %>% 
+  filter(Smoke==1 & Alcohol == 3) 
+
+# similarly, we can also do:
+extra %>% 
+  filter(Subject<10 | Subject >110) # use the "|" operator for "or"
+
+```
+
+### Subsetting columns
+```{r}
+# with base R
+extra_selected <- extra[, c("Subject", "Smoke", "Alcohol")]  
+head(extra_selected)   # for simplicity show the first rows 
+
+# with dplyr
+extra_selected <- extra %>% 
+  select(Subject, Smoke, Alcohol) 
+head(extra_selected)   # This should give us the same subset
+
+```
+
+```{r}
+# or I can subset using the column/row index
+colnames(extra)
+extra %>% 
+  select(1, 2, 3) %>%
+  head()
+
+extra[,1:3]  %>%   
+  head()      
+  # note that baseR functions and dplyr functions can be mixed, as long as grammar is correct
+```
+
+
+Subsetting both row and column at the same time is also easy, for example, if we wanted to subset the first 3 columns for females (assuming Gender = 0 is female):
+```{r}
+extra %>% 
+  filter(Gender==0) %>% # first filter out females
+  select(1:3, Gender)  %>%         # then subset the first 3 columns and Gender
+  head(n=10)           # examine the first rows
+
+# note that this did not change the original dataset, in order to save the subset, assign it to a new object
+extra_subset <- extra %>% 
+  filter(Gender==0) %>% # first filter out females
+  select(1:3, Gender) 
+```
+
+
+
+#### exercise1:
+Subset the demo data to include only subjects 1-10, and their Height and Weight. 
+```{r}
+# your code here
+
+
+# remember to save the subset data by assigning it to a new object
+```
+
+
+## Binding Data
+
+
+### Binding by row - appending data 
+
+```{r}
+# say we have data collected in two waves, and we want to append the new data onto the old data
+
+# The data we have:
+dt_old <- demo[1:10, ]  # only the first 10 subjects
+dt_new <- demo[11:22, ] # the following 12 subjects
+
+# Now we append the new onto the old:
+data_append <- rbind(dt_old, dt_new)  # cbind() is the base R function for row binding. Note that you can only use this when the columns are identical in both datasets
+
+# check the dimensions of the new dataset
+dim(data_append)   # it now has 22 rows!
+head(data_append)
+```
+
+```{r}
+# When the two datasets have different columns, we can use dplyr's bind_rows() function
+
+# for example, if the old data had height collected
+dt_old <- demo[1:10, 1:2]  # old data with 2 columns
+# and the new data has height and weight 
+dt_new <- demo[11:22, c(1,2,3)] # new data has 3 columns
+
+bind_rows(dt_old, dt_new) # the old data rows with no weight data will have NA in the weight column
+```
+
+
+
+### Binding by column - merging data  
+
+Merging data is handy when we have multiple datasets from different sources of the same subjects. 
+
+For example, since we have demographics dataset "demo" and the extra information of the same subjects stored in "extra", we can merge the two into a single dataset for easier analysis later. 
+
+#### Keys 
+To do this, we need to first identify the "key" - a variable that uniquely identifies a subject. Both datasets should have it, so one can tell which row in the "demo" dataset corresponds to which row in the "extra" dataset.
+
+```{r}
+# quick glance of the subject identifiers in both datasets
+demo$SubId
+
+extra$Subject
+
+```
+
+```{r}
+# if the subject id is missing, you can assign it using the row number. For example:
+
+# in base R
+extra2 <- extra
+extra2$my_id <- 1:nrow(extra2)
+head(extra2)
+
+# or in dplyr
+extra2 <- extra %>% mutate(my_id=row_number() )
+head(extra2)
+```
+
+#### Merging by the key
+Our two dataframes share the same subjects, just by different names of the keys.
+```{r}
+# in base R 
+data_merged <- merge(x=demo,  #datasets to be merged x
+                     y=extra, #datasets to be merged y
+                     by.x="SubId",   # key in the x dataset
+                     by.y="Subject", # key in the y dataset
+                     all.x=TRUE)  # If TRUE, include all rows from x, even if there is no match in y
+                                  # the default is FALSE - only matching rows will be kept
+                                  # all.y=TRUE will do the opposite
+
+head(data_merged)
+```
+
+
+```{r}
+# using dplyr
+data_merged <- demo %>%  #demo being the left dataset 
+  left_join(extra,       #extra being the right dataset
+            by=c("SubId"="Subject"))  # the key in the left = the key in the right
+
+head(data_merged)
+```
+
+
+#### Four ways to join in dplyr
+For the dplyr join functions, there are four ways to join two datasets: inner join, left join, right join, and full join. When the subjects in both datasets are not identical, the four ways to join will meet different purposes and end in different results. 
+
+To demonstrate how the four ways to join two datasets work, we refer to Chapter 13 of the textbook [R for Data Science](https://r4ds.had.co.nz/index.html).
+
+![](https://d33wubrfki0l68.cloudfront.net/108c0749d084c03103f8e1e8276c20e06357b124/5f113/diagrams/join-setup.png)
+
+```{r}
+# make up two datasets 
+x <- tribble(
+  ~key, ~val_x,
+     1, "x1",
+     2, "x2",
+     3, "x3"
+)
+y <- tribble(
+  ~key, ~val_y,
+     1, "y1",
+     2, "y2",
+     4, "y3"
+)
+
+```
+
+
+
+**Inner join:** keep only the rows that are in both x and y
+
+![](https://d33wubrfki0l68.cloudfront.net/3abea0b730526c3f053a3838953c35a0ccbe8980/7f29b/diagrams/join-inner.png)
+```{r}
+x %>% inner_join(y, by = "key") 
+```
+
+
+
+
+![](https://d33wubrfki0l68.cloudfront.net/9c12ca9e12ed26a7c5d2aa08e36d2ac4fb593f1e/79980/diagrams/join-outer.png)
+**Left join:** keep all rows in x
+
+```{r}
+x %>% left_join(y, by = "key") 
+```
+
+
+**Right join** keeps all observations in y.
+```{r}
+x %>% left_join(y, by = "key") 
+```
+
+**Full join** keeps all observations that appeared in either x or y.
+```{r}
+x %>% left_join(y, by = "key") 
+```
+
+
+
+## Challenge - Pivotting data
+
+Pivotting data is a common task in data management. It is often used to convert data between long and wide formats. 
+
+```{r}
+# read in our wide form of demo data
+demo_wide <- read.csv("E:/temp/DemoData_wide.csv")
+demo_wide
+```
+
+### Pivoting data from long to wide
+Weight is the variable measured at three visits. The current wide format data is good for organizing data to one subject per row. 
+
+When we need the data in long form for analysis, we can use the `pivot_longer()` function in the `tidyr` package. 
+
+```{r}
+library(tidyr)
+
+demo_long <- demo_wide %>% 
+  pivot_longer(cols = starts_with("weight"),  # we aim at columns starting with "weight"
+               names_to = "Visit",  # the new column name for the visit number
+               names_prefix = "weight_visit",  # Removes "weight_visit", leaving only the number of visit
+               values_to = "Weight")  # the new column name for the weight
+
+print(demo_long, n=12)
+```
+
+
+### Pivoting data from wide to long
+Pivot the data in long form back to wide form.
+```{r}
+demo_long %>% 
+  pivot_wider(names_from = "Visit",    # The column to use for new column names
+              names_prefix = "weight_visit",# Optional prefix for new column names
+              values_from = "Weight" )  # the new column name for the weight
+
+```
+
+
+
+## Last but not least, save our cleaned data
+```{r}
+write.csv(data_merged, "E:/temp/cleaned_data_1112.csv", row.names = FALSE)
+
+# Don't call your file "final", but instead save it with a version number or date for better book-keeping. 
+```
+
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
